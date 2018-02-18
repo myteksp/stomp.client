@@ -2,51 +2,55 @@ package com.gf.stomp.client.connection;
 
 import java.util.TreeMap;
 
-public class LifecycleEvent {
-    private final Type mType;
-    //Nullable
-    private Exception mException;
-    //Nullable
-    private String mMessage;
+public final class LifecycleEvent {
+	private final Type type;
+	private final String message;
+	private final Exception exception;
+	private TreeMap<String, String> handshakeResponseHeaders;
 
-    private TreeMap<String, String> handshakeResponseHeaders = new TreeMap<>();
+	public LifecycleEvent(Type type) {
+		this.type = type;
+		this.message = null;
+		this.exception = null;
+		this.handshakeResponseHeaders = new TreeMap<String, String>();
+	}
 
-    public LifecycleEvent(Type type) {
-        mType = type;
-    }
+	public LifecycleEvent(final Type type, final Exception exception) {
+		this.type = type;
+		this.message = null;
+		this.exception = exception;
+		this.handshakeResponseHeaders = new TreeMap<String, String>();
+	}
 
-    public LifecycleEvent(Type type, Exception exception) {
-        mType = type;
-        mException = exception;
-    }
+	public LifecycleEvent(final Type type, final String message) {
+		this.type = type;
+		this.message = message;
+		this.exception = null;
+		this.handshakeResponseHeaders = new TreeMap<String, String>();
+	}
 
-    public LifecycleEvent(Type type, String message) {
-        mType = type;
-        mMessage = message;
-    }
+	public final Type getType() {
+		return type;
+	}
 
-    public Type getType() {
-        return mType;
-    }
+	public final Exception getException() {
+		return exception;
+	}
 
-    public Exception getException() {
-        return mException;
-    }
+	public final String getMessage() {
+		return message;
+	}
 
-    public String getMessage() {
-        return mMessage;
-    }
+	public final void setHandshakeResponseHeaders(final TreeMap<String, String> handshakeResponseHeaders) {
+		this.handshakeResponseHeaders = handshakeResponseHeaders;
+	}
 
-    public void setHandshakeResponseHeaders(TreeMap<String, String> handshakeResponseHeaders) {
-        this.handshakeResponseHeaders = handshakeResponseHeaders;
-    }
+	public final TreeMap<String, String> getHandshakeResponseHeaders() {
+		return handshakeResponseHeaders;
+	}
 
-    public TreeMap<String, String> getHandshakeResponseHeaders() {
-        return handshakeResponseHeaders;
-    }
-    
-    //===========type===========
-    public static enum Type {
-        OPENED, CLOSED, ERROR
-    }
+	//===========type===========
+	public static enum Type {
+		OPENED, CLOSED, ERROR
+	}
 }

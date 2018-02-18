@@ -62,7 +62,7 @@ public final class StompMessage {
 		return builder.toString();
 	}
 
-	public static StompMessage from(String data) {
+	public static StompMessage from(final String data) {
 		if (data == null || data.trim().isEmpty()) 
 			return new StompMessage(StompCommand.UNKNOWN, null, data);
 		final Scanner reader = new Scanner(new StringReader(data));

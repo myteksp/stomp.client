@@ -22,7 +22,6 @@ import okhttp3.WebSocketListener;
 import okio.ByteString;
 
 public final class OkHttpConnectionProvider implements ConnectionProvider{
-
 	private static final String TAG = OkHttpConnectionProvider.class.getSimpleName();
 
 	private final String mUri;
@@ -35,7 +34,10 @@ public final class OkHttpConnectionProvider implements ConnectionProvider{
 	private WebSocket openedSocked;
 
 
-	public OkHttpConnectionProvider(String uri, Map<String, String> connectHttpHeaders, OkHttpClient okHttpClient) {
+	public OkHttpConnectionProvider(
+			final String uri, 
+			final Map<String, String> connectHttpHeaders, 
+			final OkHttpClient okHttpClient) {
 		mUri = uri;
 		mConnectHttpHeaders = connectHttpHeaders;
 		mLifecycleEmitters = Collections.synchronizedList(GfCollections.asLinkedCollection());
@@ -65,44 +67,40 @@ public final class OkHttpConnectionProvider implements ConnectionProvider{
 		if (openedSocked != null) 
 			throw new IllegalStateException("Already have connection to web socket");
 
-		final Request.Builder requestBuilder = new Request.Builder()
-				.url(mUri);
-
+		final Request.Builder requestBuilder = new Request.Builder().url(mUri);
 		addConnectionHeadersToBuilder(requestBuilder, mConnectHttpHeaders);
-
-		openedSocked = mOkHttpClient.newWebSocket(requestBuilder.build(),
+		openedSocked = mOkHttpClient.newWebSocket(
+				requestBuilder.build(),
 				new WebSocketListener() {
-			@Override
-			public final void onOpen(final WebSocket webSocket, final Response response) {
-				final LifecycleEvent openEvent = new LifecycleEvent(LifecycleEvent.Type.OPENED);
-
-				final TreeMap<String, String> headersAsMap = headersAsMap(response);
-
-				openEvent.setHandshakeResponseHeaders(headersAsMap);
-				emitLifecycleEvent(openEvent);
-			}
-			@Override
-			public final void onMessage(final WebSocket webSocket, final String text) {
-				emitMessage(text);
-			}
-			@Override
-			public final void onMessage(final WebSocket webSocket, final ByteString bytes) {
-				emitMessage(bytes.utf8());
-			}
-			@Override
-			public final void onClosed(final WebSocket webSocket, final int code, final String reason) {
-				emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
-				openedSocked = null;
-			}
-			@Override
-			public final void onFailure(final WebSocket webSocket, final Throwable t, final Response response) {
-				emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, new Exception(t)));
-			}
-			@Override
-			public final void onClosing(final WebSocket webSocket, final int code, final String reason) {
-				webSocket.close(code, reason);
-			}
-		});
+					@Override
+					public final void onOpen(final WebSocket webSocket, final Response response) {
+						final LifecycleEvent openEvent = new LifecycleEvent(LifecycleEvent.Type.OPENED);
+						final TreeMap<String, String> headersAsMap = headersAsMap(response);
+						openEvent.setHandshakeResponseHeaders(headersAsMap);
+						emitLifecycleEvent(openEvent);
+					}
+					@Override
+					public final void onMessage(final WebSocket webSocket, final String text) {
+						emitMessage(text);
+					}
+					@Override
+					public final void onMessage(final WebSocket webSocket, final ByteString bytes) {
+						emitMessage(bytes.utf8());
+					}
+					@Override
+					public final void onClosed(final WebSocket webSocket, final int code, final String reason) {
+						emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.CLOSED));
+						openedSocked = null;
+					}
+					@Override
+					public final void onFailure(final WebSocket webSocket, final Throwable t, final Response response) {
+						emitLifecycleEvent(new LifecycleEvent(LifecycleEvent.Type.ERROR, new Exception(t)));
+					}
+					@Override
+					public final void onClosing(final WebSocket webSocket, final int code, final String reason) {
+						webSocket.close(code, reason);
+					}
+				});
 	}
 
 	@Override
