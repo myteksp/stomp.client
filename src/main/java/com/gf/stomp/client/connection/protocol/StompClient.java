@@ -1,4 +1,4 @@
-package com.gf.stomp.client.cl;
+package com.gf.stomp.client.connection.protocol;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,9 +11,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import com.gf.stomp.client.ConnectionProvider;
-import com.gf.stomp.client.LifecycleEvent;
-import com.gf.stomp.client.StompHeader;
+import com.gf.stomp.client.connection.ConnectionProvider;
+import com.gf.stomp.client.connection.LifecycleEvent;
+import com.gf.stomp.client.connection.StompHeader;
 import com.gf.stomp.client.log.Log;
 
 import io.reactivex.BackpressureStrategy;

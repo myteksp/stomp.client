@@ -1,4 +1,4 @@
-package com.gf.stomp.client;
+package com.gf.stomp.client.connection;
 
 import java.util.TreeMap;
 

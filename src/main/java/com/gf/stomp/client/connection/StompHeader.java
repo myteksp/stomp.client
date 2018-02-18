@@ -1,4 +1,4 @@
-package com.gf.stomp.client;
+package com.gf.stomp.client.connection;
 
 public final class StompHeader {
 	public static final String VERSION = "version";

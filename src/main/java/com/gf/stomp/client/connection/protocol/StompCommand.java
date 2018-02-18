@@ -1,4 +1,4 @@
-package com.gf.stomp.client.cl;
+package com.gf.stomp.client.connection.protocol;
 
 public final class StompCommand {
 	public static final String CONNECT = "CONNECT";
