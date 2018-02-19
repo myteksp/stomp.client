@@ -17,7 +17,6 @@
 			<url>https://raw.github.com/myteksp/util.strings/mvn-repo/</url>
 			<snapshots>
 				<enabled>true</enabled>
-				<updatePolicy>always</updatePolicy>
 			</snapshots>
 		</repository>
 		<repository>
@@ -25,7 +24,6 @@
 			<url>https://raw.github.com/myteksp/collections/mvn-repo/</url>
 			<snapshots>
 				<enabled>true</enabled>
-				<updatePolicy>always</updatePolicy>
 			</snapshots>
 		</repository>
 	</repositories>
