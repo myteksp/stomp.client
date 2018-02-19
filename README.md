@@ -23,7 +23,7 @@
 	<dependency>
 		<groupId>com.gf</groupId>
 		<artifactId>stomp.client</artifactId>
-		<version>0.0.1-SNAPSHOT</version>
+		<version>0.0.2-SNAPSHOT</version>
 	</dependency>
 	```
 
