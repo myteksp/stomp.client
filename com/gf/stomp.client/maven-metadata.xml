@@ -4,8 +4,8 @@
   <artifactId>stomp.client</artifactId>
   <versioning>
     <versions>
-      <version>0.0.2-SNAPSHOT</version>
+      <version>0.0.3-SNAPSHOT</version>
     </versions>
-    <lastUpdated>20180219160936</lastUpdated>
+    <lastUpdated>20180219161136</lastUpdated>
   </versioning>
 </metadata>
