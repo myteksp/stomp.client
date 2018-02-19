@@ -139,6 +139,10 @@ public final class Client {
 				cl.connect();
 				scheduleTicker();
 			}
+			@Override
+			public final OkHttpClient getHttpClient() {
+				return cl.getHttpClient();
+			}
 		};
 	}
 	private static final OkHttpClient createClient() {

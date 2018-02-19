@@ -5,8 +5,11 @@ import java.util.function.Consumer;
 
 import com.gf.stomp.client.connection.StompHeader;
 
+import okhttp3.OkHttpClient;
+
 
 public interface GenericClient {
+	OkHttpClient getHttpClient();
 	void scheduleReconnect();
 	void connect();
 	void connect(final List<StompHeader> headers);

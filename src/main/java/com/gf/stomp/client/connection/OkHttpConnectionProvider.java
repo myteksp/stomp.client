@@ -45,6 +45,12 @@ public final class OkHttpConnectionProvider implements ConnectionProvider{
 		mMessagesEmitters = new ArrayList<FlowableEmitter<? super String>>();
 		mOkHttpClient = okHttpClient;
 	}
+	
+	
+	@Override
+	public final OkHttpClient getHttpClient() {
+		return mOkHttpClient;
+	}
 
 	@Override
 	public final Flowable<String> messages() {

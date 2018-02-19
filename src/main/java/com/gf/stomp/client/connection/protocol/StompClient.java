@@ -27,6 +27,7 @@ import io.reactivex.flowables.ConnectableFlowable;
 import io.reactivex.functions.Action;
 import io.reactivex.functions.Consumer;
 import io.reactivex.functions.Function;
+import okhttp3.OkHttpClient;
 
 public final class StompClient {
 	private static final String TAG = StompClient.class.getSimpleName();
@@ -48,6 +49,10 @@ public final class StompClient {
 		mConnectionProvider = connectionProvider;
 		mWaitConnectionFlowables = new CopyOnWriteArrayList<>();
 		on_connectedListeners = new ConcurrentLinkedQueue<OnConnectedListener>();
+	}
+	
+	public final OkHttpClient getHttpClient() {
+		return mConnectionProvider.getHttpClient();
 	}
 
 	public final void addOnConnectedListener(final OnConnectedListener listener) {

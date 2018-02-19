@@ -18,6 +18,7 @@ import com.gf.stomp.client.log.Log;
 import io.reactivex.Flowable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
+import okhttp3.OkHttpClient;
 
 public final class ClientImpl implements GenericClient{
 	private static final String TAG = "ClientImpl";
@@ -166,5 +167,10 @@ public final class ClientImpl implements GenericClient{
 	@Override
 	public final void send(final String destination) {
 		cl.send(destination);
+	}
+
+	@Override
+	public final OkHttpClient getHttpClient() {
+		return cl.getHttpClient();
 	}
 }
