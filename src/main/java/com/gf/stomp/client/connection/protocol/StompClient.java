@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -20,8 +21,12 @@ import com.gf.stomp.client.log.Log;
 import io.reactivex.BackpressureStrategy;
 import io.reactivex.Flowable;
 import io.reactivex.FlowableEmitter;
+import io.reactivex.FlowableOnSubscribe;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.flowables.ConnectableFlowable;
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Consumer;
+import io.reactivex.functions.Function;
 
 public final class StompClient {
 	private static final String TAG = StompClient.class.getSimpleName();
@@ -31,7 +36,7 @@ public final class StompClient {
 
 	private Disposable mMessagesDisposable;
 	private Disposable mLifecycleDisposable;
-	private Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = Collections.synchronizedMap(new HashMap<>());
+	private Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = new ConcurrentHashMap<String, Set<FlowableEmitter<? super StompMessage>>>();
 	private List<ConnectableFlowable<Void>> mWaitConnectionFlowables;
 	private final ConnectionProvider mConnectionProvider;
 	private HashMap<String, String> mTopics;
@@ -44,21 +49,21 @@ public final class StompClient {
 		mWaitConnectionFlowables = new CopyOnWriteArrayList<>();
 		on_connectedListeners = new ConcurrentLinkedQueue<OnConnectedListener>();
 	}
-	
+
 	public final void addOnConnectedListener(final OnConnectedListener listener) {
 		final ConcurrentLinkedQueue<OnConnectedListener> q = on_connectedListeners;
 		if (q != null) {
 			q.add(listener);
 		}
 	}
-	
+
 	private final void notifyOnConnected() {
 		final ConcurrentLinkedQueue<OnConnectedListener> q = on_connectedListeners;
 		on_connectedListeners = null;
 		if (q != null) {
 			for(final OnConnectedListener l : q) 
 				try {l.onConnected();}catch(final Throwable t) {}
-			
+
 			q.clear();
 		}
 	}
@@ -74,47 +79,58 @@ public final class StompClient {
 	public final void connect(final List<StompHeader> _headers) {
 		connect(_headers, false);
 	}
-	
+
 	public final void connect(final List<StompHeader> _headers, final boolean reconnect) {
 		if (reconnect) disconnect();
 		if (mConnected) return;
 		mLifecycleDisposable = mConnectionProvider.getLifecycleReceiver()
-				.subscribe(lifecycleEvent -> {
-					switch (lifecycleEvent.getType()) {
-					case OPENED:
-						final List<StompHeader> headers = new ArrayList<StompHeader>();
-						headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
-						if (_headers != null) headers.addAll(_headers);
-						mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile())
-						.subscribe();
-						notifyOnConnected();
-						break;
+				.subscribe(new Consumer<LifecycleEvent>() {
+					@Override
+					public final void accept(final LifecycleEvent lifecycleEvent) throws Exception {
+						switch (lifecycleEvent.getType()) {
+						case OPENED:
+							final List<StompHeader> headers = new ArrayList<StompHeader>();
+							headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
+							if (_headers != null) headers.addAll(_headers);
+							mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile())
+							.subscribe();
+							notifyOnConnected();
+							break;
 
-					case CLOSED:
-						mConnected = false;
-						isConnecting = false;
-						break;
+						case CLOSED:
+							mConnected = false;
+							isConnecting = false;
+							break;
 
-					case ERROR:
-						mConnected = false;
-						isConnecting = false;
-						break;
+						case ERROR:
+							mConnected = false;
+							isConnecting = false;
+							break;
+						}
 					}
 				});
 
 		isConnecting = true;
 		mMessagesDisposable = mConnectionProvider.messages()
-				.map(StompMessage::from)
-				.subscribe(stompMessage -> {
-					if (stompMessage.getStompCommand().equals(StompCommand.CONNECTED)) {
-						mConnected = true;
-						isConnecting = false;
-						for (ConnectableFlowable<Void> flowable : mWaitConnectionFlowables) 
-							flowable.connect();
-						
-						mWaitConnectionFlowables.clear();
+				.map(new Function<String, StompMessage>() {
+					@Override
+					public final StompMessage apply(final String t) throws Exception {
+						return StompMessage.from(t);
 					}
-					callSubscribers(stompMessage);
+				})
+				.subscribe(new Consumer<StompMessage>() {
+					@Override
+					public final void accept(final StompMessage stompMessage) throws Exception {
+						if (stompMessage.getStompCommand().equals(StompCommand.CONNECTED)) {
+							mConnected = true;
+							isConnecting = false;
+							for (ConnectableFlowable<Void> flowable : mWaitConnectionFlowables) 
+								flowable.connect();
+
+							mWaitConnectionFlowables.clear();
+						}
+						callSubscribers(stompMessage);
+					}
 				});
 	}
 
@@ -144,15 +160,13 @@ public final class StompClient {
 	}
 
 	private final void callSubscribers(final StompMessage stompMessage) {
-		String messageDestination = stompMessage.findHeader(StompHeader.DESTINATION);
-		synchronized (mEmitters) {
-			for (String dest : mEmitters.keySet()) {
-				if (dest.equals(messageDestination)) {
-					for (FlowableEmitter<? super StompMessage> subscriber : mEmitters.get(dest)) {
-						subscriber.onNext(stompMessage);
-					}
-					return;
+		final String messageDestination = stompMessage.findHeader(StompHeader.DESTINATION);
+		for (String dest : mEmitters.keySet()) {
+			if (dest.equals(messageDestination)) {
+				for (FlowableEmitter<? super StompMessage> subscriber : mEmitters.get(dest)) {
+					subscriber.onNext(stompMessage);
 				}
+				return;
 			}
 		}
 	}
@@ -174,8 +188,9 @@ public final class StompClient {
 	public final Flowable<StompMessage> topic(
 			final String destinationPath, 
 			final List<StompHeader> headerList) {
-		return Flowable.<StompMessage>create(emitter -> {
-			synchronized (mEmitters) {
+		return Flowable.<StompMessage>create(new FlowableOnSubscribe<StompMessage>() {
+			@Override
+			public void subscribe(final FlowableEmitter<StompMessage> emitter) throws Exception {
 				Set<FlowableEmitter<? super StompMessage>> emittersSet = mEmitters.get(destinationPath);
 				if (emittersSet == null) {
 					emittersSet = new HashSet<>();
@@ -184,27 +199,30 @@ public final class StompClient {
 				}
 				emittersSet.add(emitter);
 			}
-		}, BackpressureStrategy.BUFFER)
-				.doOnCancel(() -> {
-					synchronized (mEmitters) {
-						Iterator<String> mapIterator = mEmitters.keySet().iterator();
-						while (mapIterator.hasNext()) {
-							String destinationUrl = mapIterator.next();
-							Set<FlowableEmitter<? super StompMessage>> set = mEmitters.get(destinationUrl);
-							Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
-							while (setIterator.hasNext()) {
-								FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
-								if (subscriber.isCancelled()) {
-									setIterator.remove();
-									if (set.size() < 1) {
-										mapIterator.remove();
-										unsubscribePath(destinationUrl).subscribe();
-									}
+		},  BackpressureStrategy.BUFFER)
+		.doOnCancel(new Action() {
+			@Override
+			public final void run() throws Exception {
+				final Iterator<String> mapIterator = mEmitters.keySet().iterator();
+				while (mapIterator.hasNext()) {
+					final String destinationUrl = mapIterator.next();
+					final Set<FlowableEmitter<? super StompMessage>> set = mEmitters.get(destinationUrl);
+					if (set != null) {
+						final Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
+						while (setIterator.hasNext()) {
+							final FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
+							if (subscriber.isCancelled()) {
+								setIterator.remove();
+								if (set.size() < 1) {
+									mapIterator.remove();
+									unsubscribePath(destinationUrl).subscribe();
 								}
 							}
 						}
 					}
-				});
+				}
+			}
+		});
 	}
 
 	private final Flowable<Void> subscribePath(
@@ -247,8 +265,8 @@ public final class StompClient {
 		return isConnecting;
 	}
 
-	
-	
+
+
 	public static interface OnConnectedListener{
 		void onConnected();
 	}

@@ -1,15 +1,18 @@
 package com.gf.stomp.client.connection.protocol;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import com.gf.stomp.client.Client;
+import com.gf.stomp.client.connection.LifecycleEvent;
 import com.gf.stomp.client.connection.StompHeader;
+import com.gf.stomp.client.connection.protocol.StompClient.OnConnectedListener;
 import com.gf.stomp.client.log.Log;
 
 import io.reactivex.Flowable;
@@ -38,50 +41,52 @@ public final class ClientImpl implements GenericClient{
 	}
 
 	private final StompClient subscribe(final StompClient cl, final Map<String, String> connectHttpHeaders, final String url) {
-		final List<Disposable> subscriptions = consumers
-				.entrySet()
-				.stream()
-				.map(e->{
-					return cl
-							.topic(e.getKey())
-							.subscribe(m->{
-								e.getValue().accept(m);
-							});
-				})
-				.collect(Collectors.toList());
-		
+		final List<Disposable> subscriptions = new ArrayList<Disposable>(25);
+		for(final Entry<String, Consumer<StompMessage>> e : consumers.entrySet()) {
+			final Disposable sub = cl.topic(e.getKey()).subscribe(new io.reactivex.functions.Consumer<StompMessage>() {
+				private final Consumer<StompMessage> cs = e.getValue();
+				@Override
+				public final void accept(final StompMessage t) throws Exception {
+					cs.accept(t);
+				}
+			});
+			subscriptions.add(sub);
+		}
 		cl
 		.lifecycle()
-		.observeOn(Schedulers.io())
-		.subscribe(e->{
-			if (isActive.get()) {
-				final StompClient prev = ClientImpl.this.cl;
-				switch(e.getType()) {
-				case CLOSED:
-					Log.d(TAG, "Re-connectiong due to 'socket-closed' event.");
-					ClientImpl.this.cl = subscribe(Client.getStompClient(url, connectHttpHeaders), connectHttpHeaders, url);
-					ClientImpl.this.cl.connect(headers);
-					prev.disconnect();
-					subscriptions.forEach(s->{
-						try{s.dispose();}catch(final Throwable t) {}
-					});
-					subscriptions.clear();
-					break;
-				case ERROR:
-					Log.d(TAG, "Re-connectiong due to error.", e.getException());
-					ClientImpl.this.cl = subscribe(Client.getStompClient(url, connectHttpHeaders), connectHttpHeaders, url);
-					ClientImpl.this.cl.connect(headers);
-					prev.disconnect();
-					subscriptions.forEach(s->{
-						try{s.dispose();}catch(final Throwable t) {}
-					});
-					subscriptions.clear();
-					break;
-				default:
-					return;
+		.observeOn(Schedulers.io()).subscribe(new io.reactivex.functions.Consumer<LifecycleEvent>() {
+			@Override
+			public final void accept(final LifecycleEvent e) throws Exception {
+				if (isActive.get()) {
+					final StompClient prev = ClientImpl.this.cl;
+					switch(e.getType()) {
+					case CLOSED:
+						Log.d(TAG, "Re-connectiong due to 'socket-closed' event.");
+						ClientImpl.this.cl = subscribe(Client.getStompClient(url, connectHttpHeaders), connectHttpHeaders, url);
+						ClientImpl.this.cl.connect(headers);
+						prev.disconnect();
+						for(final Disposable s : subscriptions) {
+							try{s.dispose();}catch(final Throwable t) {}
+						}
+						subscriptions.clear();
+						break;
+					case ERROR:
+						Log.d(TAG, "Re-connectiong due to error.", e.getException());
+						ClientImpl.this.cl = subscribe(Client.getStompClient(url, connectHttpHeaders), connectHttpHeaders, url);
+						ClientImpl.this.cl.connect(headers);
+						prev.disconnect();
+						for(final Disposable s : subscriptions) {
+							try{s.dispose();}catch(final Throwable t) {}
+						}
+						subscriptions.clear();
+						break;
+					default:
+						return;
+					}
 				}
 			}
 		});
+
 		return cl;
 	}
 
@@ -92,15 +97,21 @@ public final class ClientImpl implements GenericClient{
 			Log.d(TAG, "Re-connectiong schduled.");
 			cl = subscribe(Client.getStompClient(url, connectHttpHeaders), connectHttpHeaders, url);
 			final AtomicBoolean gotConnected = new AtomicBoolean(false);
-			cl.addOnConnectedListener(()->{
-				gotConnected.set(true);
-				prev.disconnect();
+			cl.addOnConnectedListener(new OnConnectedListener() {
+				@Override
+				public final void onConnected() {
+					gotConnected.set(true);
+					prev.disconnect();
+				}
 			});
 			cl.connect(headers);
 			Flowable.timer(3, TimeUnit.SECONDS, Schedulers.io())
-			.subscribe(l->{
-				if (!gotConnected.get()) {
-					prev.disconnect();
+			.subscribe(new io.reactivex.functions.Consumer<Long>() {
+				@Override
+				public final void accept(final Long l) throws Exception {
+					if (!gotConnected.get()) {
+						prev.disconnect();
+					}
 				}
 			});
 		}
@@ -141,8 +152,11 @@ public final class ClientImpl implements GenericClient{
 	@Override
 	public final void topic(final String destinationPath, final Consumer<StompMessage> consumer) {
 		this.consumers.put(destinationPath, consumer);
-		cl.topic(destinationPath).subscribe(m->{
-			consumer.accept(m);
+		cl.topic(destinationPath).subscribe(new io.reactivex.functions.Consumer<StompMessage>() {
+			@Override
+			public final void accept(final StompMessage m) throws Exception {
+				consumer.accept(m);
+			}
 		});
 	}
 	@Override

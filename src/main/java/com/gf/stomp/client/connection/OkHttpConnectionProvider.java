@@ -12,6 +12,8 @@ import com.gf.stomp.client.log.Log;
 import io.reactivex.BackpressureStrategy;
 import io.reactivex.Flowable;
 import io.reactivex.FlowableEmitter;
+import io.reactivex.FlowableOnSubscribe;
+import io.reactivex.functions.Action;
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -46,16 +48,24 @@ public final class OkHttpConnectionProvider implements ConnectionProvider{
 
 	@Override
 	public final Flowable<String> messages() {
-		final Flowable<String> flowable = Flowable.<String>create(mMessagesEmitters::add, BackpressureStrategy.BUFFER)
-				.doOnCancel(() -> {
-					final Iterator<FlowableEmitter<? super String>> iterator = mMessagesEmitters.iterator();
-					while (iterator.hasNext()) 
-						if (iterator.next().isCancelled()) iterator.remove();
+		final Flowable<String> flowable = Flowable.<String>create(new FlowableOnSubscribe<String>() {
+			@Override
+			public final void subscribe(final FlowableEmitter<String> emitter) throws Exception {
+				mMessagesEmitters.add(emitter);
+			}
+		}, BackpressureStrategy.BUFFER)
+				.doOnCancel(new Action() {
+					@Override
+					public final void run() throws Exception {
+						final Iterator<FlowableEmitter<? super String>> iterator = mMessagesEmitters.iterator();
+						while (iterator.hasNext()) 
+							if (iterator.next().isCancelled()) iterator.remove();
 
-					if (mMessagesEmitters.size() < 1) {
-						Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
-						openedSocked.close(1000, "");
-						openedSocked = null;
+						if (mMessagesEmitters.size() < 1) {
+							Log.d(TAG, "Close web socket connection now in thread " + Thread.currentThread());
+							openedSocked.close(1000, "");
+							openedSocked = null;
+						}
 					}
 				});
 		createWebSocketConnection();
@@ -104,25 +114,36 @@ public final class OkHttpConnectionProvider implements ConnectionProvider{
 
 	@Override
 	public final Flowable<Void> send(final String stompMessage) {
-		return Flowable.create(subscriber -> {
-			if (openedSocked == null) {
-				subscriber.onError(new IllegalStateException("Not connected yet"));
-			} else {
-				Log.d(TAG, "Send STOMP message: " + stompMessage);
-				openedSocked.send(stompMessage);
-				subscriber.onComplete();
+		return Flowable.create(new FlowableOnSubscribe<Void>() {
+			@Override
+			public final void subscribe(final FlowableEmitter<Void> subscriber) throws Exception {
+				if (openedSocked == null) {
+					subscriber.onError(new IllegalStateException("Not connected yet"));
+				} else {
+					Log.d(TAG, "Send STOMP message: " + stompMessage);
+					openedSocked.send(stompMessage);
+					subscriber.onComplete();
+				}
 			}
 		}, BackpressureStrategy.BUFFER);
 	}
 
 	@Override
 	public final Flowable<LifecycleEvent> getLifecycleReceiver() {
-		return Flowable.<LifecycleEvent>create(mLifecycleEmitters::add, BackpressureStrategy.BUFFER)
-				.doOnCancel(() -> {
-					synchronized (mLifecycleEmitters) {
-						Iterator<FlowableEmitter<? super LifecycleEvent>> iterator = mLifecycleEmitters.iterator();
-						while (iterator.hasNext()) {
-							if (iterator.next().isCancelled()) iterator.remove();
+		return Flowable.<LifecycleEvent>create(new FlowableOnSubscribe<LifecycleEvent>() {
+			@Override
+			public final void subscribe(final FlowableEmitter<LifecycleEvent> emitter) throws Exception {
+				mLifecycleEmitters.add(emitter);
+			}
+		}, BackpressureStrategy.BUFFER)
+				.doOnCancel(new Action() {
+					@Override
+					public final void run() throws Exception {
+						synchronized (mLifecycleEmitters) {
+							Iterator<FlowableEmitter<? super LifecycleEvent>> iterator = mLifecycleEmitters.iterator();
+							while (iterator.hasNext()) {
+								if (iterator.next().isCancelled()) iterator.remove();
+							}
 						}
 					}
 				});
