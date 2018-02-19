@@ -1,13 +1,12 @@
 package com.gf.stomp.client.connection;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import com.gf.collections.GfCollection;
-import com.gf.collections.GfCollections;
 import com.gf.stomp.client.log.Log;
 
 import io.reactivex.BackpressureStrategy;
@@ -29,7 +28,7 @@ public final class OkHttpConnectionProvider implements ConnectionProvider{
 	private final OkHttpClient mOkHttpClient;
 
 	private final List<FlowableEmitter<? super LifecycleEvent>> mLifecycleEmitters;
-	private final GfCollection<FlowableEmitter<? super String>> mMessagesEmitters;
+	private final List<FlowableEmitter<? super String>> mMessagesEmitters;
 
 	private WebSocket openedSocked;
 
@@ -40,8 +39,8 @@ public final class OkHttpConnectionProvider implements ConnectionProvider{
 			final OkHttpClient okHttpClient) {
 		mUri = uri;
 		mConnectHttpHeaders = connectHttpHeaders;
-		mLifecycleEmitters = Collections.synchronizedList(GfCollections.asLinkedCollection());
-		mMessagesEmitters = GfCollections.asLinkedCollection();
+		mLifecycleEmitters = Collections.synchronizedList(new ArrayList<FlowableEmitter<? super LifecycleEvent>>());
+		mMessagesEmitters = new ArrayList<FlowableEmitter<? super String>>();
 		mOkHttpClient = okHttpClient;
 	}
 

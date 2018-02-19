@@ -6,9 +6,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
-import com.gf.collections.GfCollection;
-import com.gf.collections.GfCollections;
 import com.gf.stomp.client.Client;
 import com.gf.stomp.client.connection.StompHeader;
 import com.gf.stomp.client.log.Log;
@@ -19,7 +18,7 @@ import io.reactivex.schedulers.Schedulers;
 
 public final class ClientImpl implements GenericClient{
 	private static final String TAG = "ClientImpl";
-	
+
 	private volatile StompClient cl;
 	private final AtomicBoolean isActive;
 	private volatile List<StompHeader> headers;
@@ -39,15 +38,18 @@ public final class ClientImpl implements GenericClient{
 	}
 
 	private final StompClient subscribe(final StompClient cl, final Map<String, String> connectHttpHeaders, final String url) {
-		final GfCollection<Disposable> subscriptions = GfCollections
-				.asArrayCollection(consumers.entrySet())
+		final List<Disposable> subscriptions = consumers
+				.entrySet()
+				.stream()
 				.map(e->{
 					return cl
 							.topic(e.getKey())
 							.subscribe(m->{
 								e.getValue().accept(m);
 							});
-				});
+				})
+				.collect(Collectors.toList());
+		
 		cl
 		.lifecycle()
 		.observeOn(Schedulers.io())

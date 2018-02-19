@@ -12,7 +12,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import com.gf.collections.GfCollections;
 import com.gf.stomp.client.connection.ConnectionProvider;
 import com.gf.stomp.client.connection.LifecycleEvent;
 import com.gf.stomp.client.connection.StompHeader;
@@ -83,7 +82,7 @@ public final class StompClient {
 				.subscribe(lifecycleEvent -> {
 					switch (lifecycleEvent.getType()) {
 					case OPENED:
-						final List<StompHeader> headers = GfCollections.asLinkedCollection();
+						final List<StompHeader> headers = new ArrayList<StompHeader>();
 						headers.add(new StompHeader(StompHeader.VERSION, SUPPORTED_VERSIONS));
 						if (_headers != null) headers.addAll(_headers);
 						mConnectionProvider.send(new StompMessage(StompCommand.CONNECT, headers, null).compile())

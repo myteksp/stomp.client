@@ -1,13 +1,12 @@
 package com.gf.stomp.client.connection.protocol;
 
 import java.io.StringReader;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.gf.collections.GfCollection;
-import com.gf.collections.GfCollections;
 import com.gf.stomp.client.connection.StompHeader;
 
 public final class StompMessage {
@@ -15,12 +14,12 @@ public final class StompMessage {
 	private static final Pattern PATTERN_HEADER = Pattern.compile("([^:\\s]+)\\s*:\\s*([^:\\s]+)");
 
 	private final String mStompCommand;
-	private final GfCollection<StompHeader> mStompHeaders;
+	private final List<StompHeader> mStompHeaders;
 	private final String mPayload;
 
 	public StompMessage(final String stompCommand, final List<StompHeader> stompHeaders, final String payload) {
 		mStompCommand = stompCommand;
-		mStompHeaders = GfCollections.wrapAsCollection(stompHeaders);
+		mStompHeaders = stompHeaders;
 		mPayload = payload;
 	}
 
@@ -68,7 +67,7 @@ public final class StompMessage {
 		final Scanner reader = new Scanner(new StringReader(data));
 		reader.useDelimiter("\\n");
 		final String command = reader.next();
-		final GfCollection<StompHeader> headers = GfCollections.asLinkedCollection();
+		final List<StompHeader> headers = new ArrayList<StompHeader>();
 		while (reader.hasNext(PATTERN_HEADER)) {
 			final Matcher matcher = PATTERN_HEADER.matcher(reader.next());
 			matcher.find();

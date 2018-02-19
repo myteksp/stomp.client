@@ -4,7 +4,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.Date;
 
-import com.gf.util.string.MacroCompiler;
 
 public final class LogEvent {
 	public static final String DEFAULT_TAG = "DEFAULT";
@@ -71,9 +70,9 @@ public final class LogEvent {
 	@Override
 	public final String toString() {
 		if (tr == null)
-			return MacroCompiler.compileInline("[${1}][${0}][${2}][] - [${3}]", date.toString(), typeToVerbose(type), tag, msg);
+			return "[" + typeToVerbose(type) + "][" + date.toString() + "][" +tag+ "][] - [" + msg + "]";
 		else
-			return MacroCompiler.compileInline("[${1}][${0}][${2}][${4}] - [${3}]", date.toString(), typeToVerbose(type), tag, msg, tr);
+			return "[" + typeToVerbose(type) + "][" +date.toString() + "][" + tag + "][" + tr + "] - [" + msg + "]";
 	}
 	
 	public static final String typeToVerbose(final Type type) {
