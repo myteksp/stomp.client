@@ -1,12 +1,11 @@
 package com.gf.stomp.client.connection.protocol;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -16,7 +15,6 @@ import com.gf.stomp.client.connection.StompHeader;
 import com.gf.stomp.client.connection.protocol.StompClient.OnConnectedListener;
 import com.gf.stomp.client.log.Log;
 
-import io.reactivex.Flowable;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.schedulers.Schedulers;
 import okhttp3.OkHttpClient;
@@ -27,21 +25,17 @@ public final class ClientImpl implements GenericClient{
 	private volatile StompClient cl;
 	private final AtomicBoolean isActive;
 	private volatile List<StompHeader> headers;
-	private final ConcurrentHashMap<String, Consumer<StompMessage>> consumers;
-	private final Map<String, String> connectHttpHeaders;
-	private final String url;
-	private final ConcurrentLinkedQueue<ClientStatelistener> stateListener;
+	private final Map<String, Consumer<StompMessage>> consumers;
+	private final Queue<ClientStatelistener> stateListener;
 
 	public ClientImpl(
 			final StompClient cl, 
 			final Map<String, String> connectHttpHeaders, 
-			final String url) {
+			final String url, final long ws_ping) {
 		stateListener = new ConcurrentLinkedQueue<ClientStatelistener>();
-		this.url = url;
-		this.connectHttpHeaders = connectHttpHeaders;
 		this.consumers = new ConcurrentHashMap<String, Consumer<StompMessage>>();
 		isActive = new AtomicBoolean(false);
-		this.cl = subscribe(cl, connectHttpHeaders, url);
+		this.cl = subscribe(cl, connectHttpHeaders, url, ws_ping);
 	}
 	
 	@Override
@@ -49,8 +43,8 @@ public final class ClientImpl implements GenericClient{
 		stateListener.add(listener);
 	}
 
-	private final StompClient subscribe(final StompClient cl, final Map<String, String> connectHttpHeaders, final String url) {
-		final List<Disposable> subscriptions = new ArrayList<Disposable>(25);
+	private final StompClient subscribe(final StompClient cl, final Map<String, String> connectHttpHeaders, final String url, final long ws_ping) {
+		final Queue<Disposable> subs = new ConcurrentLinkedQueue<Disposable>();
 		for(final Entry<String, Consumer<StompMessage>> e : consumers.entrySet()) {
 			final Disposable sub = cl.topic(e.getKey()).subscribe(new io.reactivex.functions.Consumer<StompMessage>() {
 				private final Consumer<StompMessage> cs = e.getValue();
@@ -59,21 +53,23 @@ public final class ClientImpl implements GenericClient{
 					cs.accept(t);
 				}
 			});
-			subscriptions.add(sub);
+			subs.add(sub);
 		}
 		cl
 		.lifecycle()
 		.observeOn(Schedulers.io()).subscribe(new io.reactivex.functions.Consumer<LifecycleEvent>() {
+			private final Queue<Disposable> subscriptions = subs;
 			@Override
 			public final void accept(final LifecycleEvent e) throws Exception {
 				if (isActive.get()) {
 					final StompClient prev = ClientImpl.this.cl;
+					ClientImpl.this.cl = null;
 					switch(e.getType()) {
 					case CLOSED:
 						for(final ClientStatelistener l : stateListener)
-							l.onPlannedReconnectionStart();
+							l.onReconnectionStarted();
 						Log.d(TAG, "Re-connectiong due to 'socket-closed' event.");
-						final StompClient next = subscribe(Client.getStompClient(url, connectHttpHeaders), connectHttpHeaders, url);
+						final StompClient next = subscribe(Client.getStompClient(url, connectHttpHeaders, ws_ping), connectHttpHeaders, url, ws_ping);
 						next.addOnConnectedListener(new OnConnectedListener() {
 							@Override
 							public final void onConnected() {
@@ -84,16 +80,17 @@ public final class ClientImpl implements GenericClient{
 								}
 								subscriptions.clear();
 								for(final ClientStatelistener l : stateListener)
-									l.onPlannedReconnectionCompleted();
+									l.onReconnectionCompleted();
+								prev.disconnect();
 							}
 						});
 						next.connect(headers);
 						break;
 					case ERROR:
 						for(final ClientStatelistener l : stateListener)
-							l.onUnplannedReconnectionStarted();
+							l.onReconnectionStarted();
 						Log.d(TAG, "Re-connectiong due to error.", e.getException());
-						final StompClient next1 = subscribe(Client.getStompClient(url, connectHttpHeaders), connectHttpHeaders, url);
+						final StompClient next1 = subscribe(Client.getStompClient(url, connectHttpHeaders, ws_ping), connectHttpHeaders, url, ws_ping);
 						next1.addOnConnectedListener(new OnConnectedListener() {
 							@Override
 							public final void onConnected() {
@@ -104,7 +101,8 @@ public final class ClientImpl implements GenericClient{
 								}
 								subscriptions.clear();
 								for(final ClientStatelistener l : stateListener)
-									l.onUnplannedReconnectionCompleted();
+									l.onReconnectionCompleted();
+								prev.disconnect();
 							}
 						});
 						next1.connect(headers);
@@ -117,42 +115,6 @@ public final class ClientImpl implements GenericClient{
 		});
 
 		return cl;
-	}
-	
-	private final void scheduleReconnect(final int atempt) {
-		if (isActive.get()) {
-			final StompClient prev = cl;
-			for(final ClientStatelistener l : stateListener)
-				l.onPlannedReconnectionStart();
-			Log.d(TAG, "Re-connectiong schduled.");
-			cl = subscribe(Client.getStompClient(url, connectHttpHeaders), connectHttpHeaders, url);
-			final AtomicBoolean gotConnected = new AtomicBoolean(false);
-			cl.addOnConnectedListener(new OnConnectedListener() {
-				@Override
-				public final void onConnected() {
-					gotConnected.set(true);
-					prev.disconnect();
-					for(final ClientStatelistener l : stateListener)
-						l.onPlannedReconnectionCompleted();
-				}
-			});
-			cl.connect(headers);
-			Flowable.timer(3, TimeUnit.SECONDS, Schedulers.io())
-			.subscribe(new io.reactivex.functions.Consumer<Long>() {
-				@Override
-				public final void accept(final Long l) throws Exception {
-					if (!gotConnected.get()) {
-						prev.disconnect();
-						scheduleReconnect(atempt + 1);
-					}
-				}
-			});
-		}
-	}
-
-	@Override
-	public final void scheduleReconnect() {
-		scheduleReconnect(0);
 	}
 
 	@Override

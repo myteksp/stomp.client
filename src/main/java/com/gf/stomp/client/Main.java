@@ -17,23 +17,13 @@ public final class Main {
 		client.addClientStateListener(new ClientStatelistener() {
 			
 			@Override
-			public void onUnplannedReconnectionStarted() {
+			public void onReconnectionStarted() {
 				System.out.println("Unplanned: reconnecting");
 			}
 			
 			@Override
-			public void onUnplannedReconnectionCompleted() {
+			public void onReconnectionCompleted() {
 				System.out.println("Unplanned: connected");
-			}
-			
-			@Override
-			public void onPlannedReconnectionStart() {
-				System.out.println("Planned: reconnecting");
-			}
-			
-			@Override
-			public void onPlannedReconnectionCompleted() {
-				System.out.println("Planned: connected");
 			}
 		});
 		client.topic("/event/tick", new Consumer<StompMessage>() {

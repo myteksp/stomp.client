@@ -3,8 +3,10 @@ package com.gf.stomp.client.connection.protocol;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -31,15 +33,15 @@ public final class StompClient {
 	public static final String SUPPORTED_VERSIONS = "1.1,1.0";
 	public static final String DEFAULT_ACK = "auto";
 
-	private Disposable mMessagesDisposable;
-	private Disposable mLifecycleDisposable;
-	private ConcurrentHashMap<String, ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>>> mEmitters = new ConcurrentHashMap<String, ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>>>();
-	private ConcurrentLinkedQueue<ConnectableFlowable<Void>> mWaitConnectionFlowables;
+	private volatile Disposable mMessagesDisposable;
+	private volatile Disposable mLifecycleDisposable;
+	private final Map<String, ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>>> mEmitters = new ConcurrentHashMap<String, ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>>>();
+	private final Queue<ConnectableFlowable<Void>> mWaitConnectionFlowables;
 	private final ConnectionProvider mConnectionProvider;
-	private final ConcurrentHashMap<String, String> mTopics = new ConcurrentHashMap<String, String>();
-	private boolean mConnected;
-	private boolean isConnecting;
-	private volatile ConcurrentLinkedQueue<OnConnectedListener> on_connectedListeners;
+	private final Map<String, String> mTopics = new ConcurrentHashMap<String, String>();
+	private volatile boolean mConnected;
+	private volatile boolean isConnecting;
+	private volatile Queue<OnConnectedListener> on_connectedListeners;
 
 	public StompClient(ConnectionProvider connectionProvider) {
 		mConnectionProvider = connectionProvider;
@@ -52,14 +54,14 @@ public final class StompClient {
 	}
 
 	public final void addOnConnectedListener(final OnConnectedListener listener) {
-		final ConcurrentLinkedQueue<OnConnectedListener> q = on_connectedListeners;
+		final Queue<OnConnectedListener> q = on_connectedListeners;
 		if (q != null) {
 			q.add(listener);
 		}
 	}
 
 	private final void notifyOnConnected() {
-		final ConcurrentLinkedQueue<OnConnectedListener> q = on_connectedListeners;
+		final Queue<OnConnectedListener> q = on_connectedListeners;
 		on_connectedListeners = null;
 		if (q != null) {
 			for(final OnConnectedListener l : q) 
@@ -210,20 +212,15 @@ public final class StompClient {
 				.doOnCancel(new Action() {
 					@Override
 					public final void run() throws Exception {
-						final Iterator<String> mapIterator = mEmitters.keySet().iterator();
-						while (mapIterator.hasNext()) {
-							final String destinationUrl = mapIterator.next();
-							final ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>> set = mEmitters.get(destinationUrl);
-							if (set != null) {
-								final Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
-								while (setIterator.hasNext()) {
-									final FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
-									if (subscriber.isCancelled()) {
-										setIterator.remove();
-										if (set.size() < 1) {
-											mapIterator.remove();
-											unsubscribePath(destinationUrl).subscribe();
-										}
+						for(final Entry<String, ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>>> e : mEmitters.entrySet()) {
+							final String destinationUrl = e.getKey();
+							final ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>> set = e.getValue();
+							for(final FlowableEmitter<? super StompMessage> subscriber : set) {
+								if (subscriber.isCancelled()) {
+									set.remove(subscriber);
+									if (set.size() < 1) {
+										mEmitters.remove(destinationUrl);
+										unsubscribePath(destinationUrl).subscribe();
 									}
 								}
 							}
