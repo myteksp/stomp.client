@@ -63,7 +63,6 @@ public final class ClientImpl implements GenericClient{
 			public final void accept(final LifecycleEvent e) throws Exception {
 				if (isActive.get()) {
 					final StompClient prev = ClientImpl.this.cl;
-					ClientImpl.this.cl = null;
 					switch(e.getType()) {
 					case CLOSED:
 						for(final ClientStatelistener l : stateListener)
@@ -133,6 +132,7 @@ public final class ClientImpl implements GenericClient{
 	public final void disconnect() {
 		if (isActive.getAndSet(false)) {
 			cl.disconnect();
+			cl = null;
 		}
 	}
 	@Override
