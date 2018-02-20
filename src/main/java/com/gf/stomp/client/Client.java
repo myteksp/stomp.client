@@ -13,6 +13,7 @@ import com.gf.stomp.client.connection.ConnectionProvider;
 import com.gf.stomp.client.connection.OkHttpConnectionProvider;
 import com.gf.stomp.client.connection.StompHeader;
 import com.gf.stomp.client.connection.protocol.ClientImpl;
+import com.gf.stomp.client.connection.protocol.ClientStatelistener;
 import com.gf.stomp.client.connection.protocol.GenericClient;
 import com.gf.stomp.client.connection.protocol.StompClient;
 import com.gf.stomp.client.connection.protocol.StompMessage;
@@ -142,6 +143,10 @@ public final class Client {
 			@Override
 			public final OkHttpClient getHttpClient() {
 				return cl.getHttpClient();
+			}
+			@Override
+			public final void addClientStateListener(final ClientStatelistener listener) {
+				cl.addClientStateListener(listener);
 			}
 		};
 	}

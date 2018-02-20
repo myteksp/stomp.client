@@ -45,8 +45,17 @@ public final class OkHttpConnectionProvider implements ConnectionProvider{
 		mMessagesEmitters = new ArrayList<FlowableEmitter<? super String>>();
 		mOkHttpClient = okHttpClient;
 	}
-	
-	
+
+	@Override
+	public final String getUri() {
+		return mUri;
+	}
+
+	@Override
+	public final Map<String, String> getConnectionHeaders(){
+		return mConnectHttpHeaders;
+	}
+
 	@Override
 	public final OkHttpClient getHttpClient() {
 		return mOkHttpClient;
@@ -156,7 +165,7 @@ public final class OkHttpConnectionProvider implements ConnectionProvider{
 	}
 
 	private final TreeMap<String, String> headersAsMap(final Response response) {
-		final TreeMap<String, String> headersAsMap = new TreeMap<>();
+		final TreeMap<String, String> headersAsMap = new TreeMap<String, String>();
 		final Headers headers = response.headers();
 		for (String key : headers.names()) 
 			headersAsMap.put(key, headers.get(key));

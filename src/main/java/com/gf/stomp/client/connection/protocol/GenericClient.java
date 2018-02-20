@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient;
 
 
 public interface GenericClient {
+	void addClientStateListener(final ClientStatelistener listener);
 	OkHttpClient getHttpClient();
 	void scheduleReconnect();
 	void connect();

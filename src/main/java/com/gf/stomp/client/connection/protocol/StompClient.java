@@ -1,17 +1,13 @@
+
 package com.gf.stomp.client.connection.protocol;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import com.gf.stomp.client.connection.ConnectionProvider;
 import com.gf.stomp.client.connection.LifecycleEvent;
@@ -37,20 +33,20 @@ public final class StompClient {
 
 	private Disposable mMessagesDisposable;
 	private Disposable mLifecycleDisposable;
-	private Map<String, Set<FlowableEmitter<? super StompMessage>>> mEmitters = new ConcurrentHashMap<String, Set<FlowableEmitter<? super StompMessage>>>();
-	private List<ConnectableFlowable<Void>> mWaitConnectionFlowables;
+	private ConcurrentHashMap<String, ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>>> mEmitters = new ConcurrentHashMap<String, ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>>>();
+	private ConcurrentLinkedQueue<ConnectableFlowable<Void>> mWaitConnectionFlowables;
 	private final ConnectionProvider mConnectionProvider;
-	private HashMap<String, String> mTopics;
+	private final ConcurrentHashMap<String, String> mTopics = new ConcurrentHashMap<String, String>();
 	private boolean mConnected;
 	private boolean isConnecting;
 	private volatile ConcurrentLinkedQueue<OnConnectedListener> on_connectedListeners;
 
 	public StompClient(ConnectionProvider connectionProvider) {
 		mConnectionProvider = connectionProvider;
-		mWaitConnectionFlowables = new CopyOnWriteArrayList<>();
+		mWaitConnectionFlowables = new ConcurrentLinkedQueue<ConnectableFlowable<Void>>();
 		on_connectedListeners = new ConcurrentLinkedQueue<OnConnectedListener>();
 	}
-	
+
 	public final OkHttpClient getHttpClient() {
 		return mConnectionProvider.getHttpClient();
 	}
@@ -120,7 +116,12 @@ public final class StompClient {
 				.map(new Function<String, StompMessage>() {
 					@Override
 					public final StompMessage apply(final String t) throws Exception {
-						return StompMessage.from(t);
+						try {
+							return StompMessage.from(t);
+						}catch(final Exception er) {
+							Log.e(TAG, "Failed to parse STOMP message.", er);
+							throw er;
+						}
 					}
 				})
 				.subscribe(new Consumer<StompMessage>() {
@@ -166,14 +167,15 @@ public final class StompClient {
 
 	private final void callSubscribers(final StompMessage stompMessage) {
 		final String messageDestination = stompMessage.findHeader(StompHeader.DESTINATION);
-		for (String dest : mEmitters.keySet()) {
-			if (dest.equals(messageDestination)) {
-				for (FlowableEmitter<? super StompMessage> subscriber : mEmitters.get(dest)) {
-					subscriber.onNext(stompMessage);
-				}
-				return;
-			}
-		}
+		if (messageDestination == null)
+			return;
+		
+		final ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>> subs = mEmitters.get(messageDestination);
+		if (subs == null)
+			return;
+		
+		for (final FlowableEmitter<? super StompMessage> subscriber : subs) 
+			subscriber.onNext(stompMessage);
 	}
 
 	public final Flowable<LifecycleEvent> lifecycle() {
@@ -196,38 +198,38 @@ public final class StompClient {
 		return Flowable.<StompMessage>create(new FlowableOnSubscribe<StompMessage>() {
 			@Override
 			public void subscribe(final FlowableEmitter<StompMessage> emitter) throws Exception {
-				Set<FlowableEmitter<? super StompMessage>> emittersSet = mEmitters.get(destinationPath);
+				ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>> emittersSet = mEmitters.get(destinationPath);
 				if (emittersSet == null) {
-					emittersSet = new HashSet<>();
+					emittersSet = new ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>>();
 					mEmitters.put(destinationPath, emittersSet);
 					subscribePath(destinationPath, headerList).subscribe();
 				}
 				emittersSet.add(emitter);
 			}
 		},  BackpressureStrategy.BUFFER)
-		.doOnCancel(new Action() {
-			@Override
-			public final void run() throws Exception {
-				final Iterator<String> mapIterator = mEmitters.keySet().iterator();
-				while (mapIterator.hasNext()) {
-					final String destinationUrl = mapIterator.next();
-					final Set<FlowableEmitter<? super StompMessage>> set = mEmitters.get(destinationUrl);
-					if (set != null) {
-						final Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
-						while (setIterator.hasNext()) {
-							final FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
-							if (subscriber.isCancelled()) {
-								setIterator.remove();
-								if (set.size() < 1) {
-									mapIterator.remove();
-									unsubscribePath(destinationUrl).subscribe();
+				.doOnCancel(new Action() {
+					@Override
+					public final void run() throws Exception {
+						final Iterator<String> mapIterator = mEmitters.keySet().iterator();
+						while (mapIterator.hasNext()) {
+							final String destinationUrl = mapIterator.next();
+							final ConcurrentLinkedQueue<FlowableEmitter<? super StompMessage>> set = mEmitters.get(destinationUrl);
+							if (set != null) {
+								final Iterator<FlowableEmitter<? super StompMessage>> setIterator = set.iterator();
+								while (setIterator.hasNext()) {
+									final FlowableEmitter<? super StompMessage> subscriber = setIterator.next();
+									if (subscriber.isCancelled()) {
+										setIterator.remove();
+										if (set.size() < 1) {
+											mapIterator.remove();
+											unsubscribePath(destinationUrl).subscribe();
+										}
+									}
 								}
 							}
 						}
 					}
-				}
-			}
-		});
+				});
 	}
 
 	private final Flowable<Void> subscribePath(
@@ -235,10 +237,8 @@ public final class StompClient {
 			final List<StompHeader> headerList) {
 		if (destinationPath == null) return Flowable.empty();
 		final String topicId = UUID.randomUUID().toString();
-
-		if (mTopics == null) mTopics = new HashMap<>();
 		mTopics.put(destinationPath, topicId);
-		List<StompHeader> headers = new ArrayList<>();
+		final List<StompHeader> headers = new ArrayList<StompHeader>();
 		headers.add(new StompHeader(StompHeader.ID, topicId));
 		headers.add(new StompHeader(StompHeader.DESTINATION, destinationPath));
 		headers.add(new StompHeader(StompHeader.ACK, DEFAULT_ACK));
