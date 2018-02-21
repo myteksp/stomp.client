@@ -15,8 +15,8 @@ import com.gf.stomp.client.connection.StompHeader;
 import com.gf.stomp.client.connection.protocol.StompClient.OnConnectedListener;
 import com.gf.stomp.client.log.Log;
 
+import io.reactivex.Scheduler;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.schedulers.Schedulers;
 import okhttp3.OkHttpClient;
 
 public final class ClientImpl implements GenericClient{
@@ -27,17 +27,21 @@ public final class ClientImpl implements GenericClient{
 	private volatile List<StompHeader> headers;
 	private final Map<String, Consumer<StompMessage>> consumers;
 	private final Queue<ClientStatelistener> stateListener;
+	private final Scheduler scheduler;
 
 	public ClientImpl(
 			final StompClient cl, 
 			final Map<String, String> connectHttpHeaders, 
-			final String url, final long ws_ping) {
+			final String url, 
+			final long ws_ping,
+			final Scheduler scheduler) {
+		this.scheduler = scheduler;
 		stateListener = new ConcurrentLinkedQueue<ClientStatelistener>();
 		this.consumers = new ConcurrentHashMap<String, Consumer<StompMessage>>();
 		isActive = new AtomicBoolean(false);
 		this.cl = subscribe(cl, connectHttpHeaders, url, ws_ping);
 	}
-	
+
 	@Override
 	public final void addClientStateListener(final ClientStatelistener listener) {
 		stateListener.add(listener);
@@ -57,7 +61,8 @@ public final class ClientImpl implements GenericClient{
 		}
 		cl
 		.lifecycle()
-		.observeOn(Schedulers.io()).subscribe(new io.reactivex.functions.Consumer<LifecycleEvent>() {
+		.observeOn(scheduler)
+		.subscribe(new io.reactivex.functions.Consumer<LifecycleEvent>() {
 			private final Queue<Disposable> subscriptions = subs;
 			@Override
 			public final void accept(final LifecycleEvent e) throws Exception {

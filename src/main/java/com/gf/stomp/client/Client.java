@@ -13,27 +13,32 @@ import com.gf.stomp.client.connection.protocol.ClientImpl;
 import com.gf.stomp.client.connection.protocol.GenericClient;
 import com.gf.stomp.client.connection.protocol.StompClient;
 
+import io.reactivex.Scheduler;
 import okhttp3.OkHttpClient;
 import okhttp3.OkHttpClient.Builder;
 
 public final class Client {
-	public static final GenericClient create(final String url) {
-		return create(url, new HashMap<String, String>());
-	}
-	public static final GenericClient create(
-			final String uri, 
-			final Map<String, String> connectHttpHeaders) {
-		return create(uri, connectHttpHeaders, 5);
+	public static final GenericClient create(final String url, final Scheduler scheduler) {
+		return create(url, new HashMap<String, String>(), scheduler);
 	}
 	public static final GenericClient create(
 			final String uri, 
 			final Map<String, String> connectHttpHeaders,
-			final long ws_ping) {
+			final Scheduler scheduler) {
+		return create(uri, connectHttpHeaders, 5, scheduler);
+	}
+	public static final GenericClient create(
+			final String uri, 
+			final Map<String, String> connectHttpHeaders,
+			final long ws_ping, 
+			final Scheduler scheduler) {
 		final String url = validateUrl(normalizeUrl(uri));
 		return new ClientImpl(
 				getStompClient(url, connectHttpHeaders, ws_ping), 
 				connectHttpHeaders, 
-				url, ws_ping);
+				url, 
+				ws_ping,
+				scheduler);
 	}
 	public static final StompClient getStompClient(
 			final String url, 

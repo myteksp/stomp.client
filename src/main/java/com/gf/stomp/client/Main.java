@@ -8,11 +8,13 @@ import com.gf.stomp.client.connection.protocol.StompMessage;
 import com.gf.stomp.client.log.Log;
 import com.gf.stomp.client.log.LogEvent.Type;
 
+import io.reactivex.schedulers.Schedulers;
+
 public final class Main {
 
 	public static void main(String[] args) {
 		Log.setLogLevel(Type.v);
-		final GenericClient client = Client.create("https://athena-backend-api-rest.herokuapp.com/broadcast");
+		final GenericClient client = Client.create("https://athena-backend-api-rest.herokuapp.com/broadcast", Schedulers.io());
 		client.connect();
 		client.addClientStateListener(new ClientStatelistener() {
 			

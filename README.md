@@ -23,7 +23,7 @@
 	<dependency>
 		<groupId>com.gf</groupId>
 		<artifactId>stomp.client</artifactId>
-		<version>0.0.4-SNAPSHOT</version>
+		<version>0.0.8-SNAPSHOT</version>
 	</dependency>
 	```
 
@@ -32,7 +32,7 @@
 
 	> 
 	```
-	GenericClient client = Client.create("<https|http|wss|ws>://<your host>/<websocket STOMP end-point>");
+	GenericClient client = Client.create("<https|http|wss|ws>://<your host>/<websocket STOMP end-point>", <JavaRX scheduler>);
 	client.connect();
 	```
 	
