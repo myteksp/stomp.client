@@ -2,23 +2,23 @@
 <metadata modelVersion="1.1.0">
   <groupId>com.gf</groupId>
   <artifactId>stomp.client</artifactId>
-  <version>0.0.7-SNAPSHOT</version>
+  <version>0.0.8-SNAPSHOT</version>
   <versioning>
     <snapshot>
-      <timestamp>20180220.145456</timestamp>
+      <timestamp>20180221.110815</timestamp>
       <buildNumber>1</buildNumber>
     </snapshot>
-    <lastUpdated>20180220145456</lastUpdated>
+    <lastUpdated>20180221110815</lastUpdated>
     <snapshotVersions>
       <snapshotVersion>
         <extension>jar</extension>
-        <value>0.0.7-20180220.145456-1</value>
-        <updated>20180220145456</updated>
+        <value>0.0.8-20180221.110815-1</value>
+        <updated>20180221110815</updated>
       </snapshotVersion>
       <snapshotVersion>
         <extension>pom</extension>
-        <value>0.0.7-20180220.145456-1</value>
-        <updated>20180220145456</updated>
+        <value>0.0.8-20180221.110815-1</value>
+        <updated>20180221110815</updated>
       </snapshotVersion>
     </snapshotVersions>
   </versioning>
