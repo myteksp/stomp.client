@@ -28,6 +28,18 @@ public final class Main {
 				System.out.println("Unplanned: connected");
 			}
 		});
+		client.topic("/event/game_resumed", new Consumer<StompMessage>() {
+			@Override
+			public void accept(StompMessage message) {
+				System.out.println("RESUMED: " + message.getPayload());
+			}
+		});
+		client.topic("/event/game_paused", new Consumer<StompMessage>() {
+			@Override
+			public void accept(StompMessage message) {
+				System.out.println("PAUSED: " + message.getPayload());
+			}
+		});
 		client.topic("/event/tick", new Consumer<StompMessage>() {
 			@Override
 			public void accept(StompMessage message) {
@@ -73,7 +85,7 @@ public final class Main {
 		client.topic("/event/stats", new Consumer<StompMessage>() {
 			@Override
 			public void accept(StompMessage message) {
-				System.out.println("STATS: " + message.getPayload());
+				//System.out.println("STATS: " + message.getPayload());
 			}
 		});
 	}
